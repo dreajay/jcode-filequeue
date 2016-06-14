@@ -71,7 +71,7 @@ public class DataFileDeleteRunner extends Thread {
 						}
 					}
 				});
-				if (files != null && files.length > 0) {
+				if (files != null && files.length > 0 && run) {
 					for (File file : files) {
 						if (run) {
 							try {
@@ -92,7 +92,7 @@ public class DataFileDeleteRunner extends Thread {
 				}
 				// 睡眠1秒钟
 				try {
-					Thread.sleep(1);
+					Thread.sleep(5);
 				} catch (InterruptedException e) {
 					break;
 				}

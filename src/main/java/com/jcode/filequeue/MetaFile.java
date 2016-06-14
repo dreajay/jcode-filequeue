@@ -12,14 +12,12 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.jcode.filequeue.exception.FileQueueAlreadyInuseException;
 import com.jcode.filequeue.exception.MetaFileFormatException;
 
 /**
@@ -158,9 +156,7 @@ public class MetaFile {
 	 * @return
 	 */
 	public boolean hasNextReadFileIndex() {
-		int currentReadFileIndex = readFileIndex.get();
-		int currentWriteFileIndex = writeFileIndex.get();
-		return currentReadFileIndex == currentWriteFileIndex ? false : true;
+		return readFileIndex.get() == writeFileIndex.get() ? false : true;
 	}
 
 	/**
@@ -176,6 +172,7 @@ public class MetaFile {
 		} else if (Integer.MAX_VALUE == currentReadFileIndex) {
 			mappedByteBuffer.position(12);
 			mappedByteBuffer.putInt(0);
+			readFileIndex.set(0);
 			return 0;
 		} else {
 			int index = readFileIndex.incrementAndGet();
@@ -204,6 +201,7 @@ public class MetaFile {
 		if (Integer.MAX_VALUE == currentWriteFileIndex) {
 			mappedByteBuffer.position(16);
 			mappedByteBuffer.putInt(0);
+			writeFileIndex.set(0);
 			return 0;
 		} else {
 			int index = writeFileIndex.incrementAndGet();
@@ -218,27 +216,23 @@ public class MetaFile {
 	 */
 	public void close() {
 		try {
-			final CountDownLatch latch = new CountDownLatch(1);
+			if (mappedByteBuffer == null) {
+				return ;
+			}
+			mappedByteBuffer.force();
 			AccessController.doPrivileged(new PrivilegedAction<Object>() {
 				public Object run() {
 					try {
-						mappedByteBuffer.force();
 						Method getCleanerMethod = mappedByteBuffer.getClass().getMethod("cleaner", new Class[0]);
 						getCleanerMethod.setAccessible(true);
 						sun.misc.Cleaner cleaner = (sun.misc.Cleaner) getCleanerMethod.invoke(mappedByteBuffer, new Object[0]);
 						cleaner.clean();
 					} catch (Exception e) {
 						log.error("close logindexy file error:", e);
-					} finally {
-						latch.countDown();
-					}
+					} 
 					return null;
 				}
 			});
-			try {
-				latch.await();
-			} catch (InterruptedException e) {
-			}
 			if (channel != null) {
 				channel.close();
 				channel = null;

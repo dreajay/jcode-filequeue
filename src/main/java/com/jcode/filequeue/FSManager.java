@@ -157,14 +157,6 @@ public class FSManager {
 
 	public void reset() {
 		try {
-			if (deleteRunner != null) {
-				deleteRunner.shutdown();
-				deleteRunner = null;
-			}
-			if (preCreateRunner != null) {
-				preCreateRunner.shutdown();
-				preCreateRunner = null;
-			}
 			if (writeFileHandler != null) {
 				writeFileHandler.close();
 				writeFileHandler = null;
@@ -176,7 +168,6 @@ public class FSManager {
 			if (metaFile != null) {
 				metaFile.reset();
 			}
-			Thread.sleep(5);
 			File[] files = new File(getFilePath()).listFiles();
 			if (files != null && files.length > 0) {
 				for (File file : files) {
@@ -187,10 +178,6 @@ public class FSManager {
 			}
 			readFileHandler = new DataFile(filePath, metaFile.getReadFileIndex(), fileSize);
 			writeFileHandler = new DataFile(filePath, metaFile.getWriteFileIndex(), fileSize);
-			deleteRunner = new DataFileDeleteRunner(this);
-			deleteRunner.start();
-			preCreateRunner = new DataFilePreCreateRunner(this);
-			preCreateRunner.start();
 		} catch (Throwable e) {
 			log.error(e.getMessage(), e);
 		}

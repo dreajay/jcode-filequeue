@@ -3,7 +3,6 @@
  */
 package com.jcode.filequeue;
 
-import java.io.IOException;
 import java.util.AbstractQueue;
 import java.util.Iterator;
 import java.util.Queue;
@@ -36,6 +35,10 @@ public class FileQueue<E> extends AbstractQueue<E> implements Queue<E>, java.io.
 		this(path, -1L, default_serializer, false);
 	}
 
+	public FileQueue(String path, QueueSerializer serializer) {
+		this(path, -1L, serializer, false);
+	}
+	
 	public FileQueue(String path, long fileSize) {
 		this(path, fileSize, default_serializer, false);
 	}
@@ -59,10 +62,7 @@ public class FileQueue<E> extends AbstractQueue<E> implements Queue<E>, java.io.
 	public void addShutdownHook() {
 		Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
 			public void run() {
-				log.info("FileQueue Shutdown...");
-				if (fsManager != null) {
-					fsManager.close();
-				}
+				close();
 			}
 		}));
 	}
@@ -79,6 +79,9 @@ public class FileQueue<E> extends AbstractQueue<E> implements Queue<E>, java.io.
 
 	@Override
 	public boolean offer(E e) {
+		if(e == null) {
+			throw new NullPointerException();
+		}
 		try {
 			lock.lock();
 			fsManager.put(serializer.serialize(e));
@@ -148,8 +151,12 @@ public class FileQueue<E> extends AbstractQueue<E> implements Queue<E>, java.io.
 	}
 
 	public void close() {
+		log.info("FileQueue Shutdown...");
+		long begin =System.currentTimeMillis();
 		if (fsManager != null) {
 			fsManager.close();
+			fsManager = null;
 		}
+		System.out.println("close:"+(System.currentTimeMillis()-begin));
 	}
 }

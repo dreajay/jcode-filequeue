@@ -12,7 +12,6 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.concurrent.CountDownLatch;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,8 +41,8 @@ public class DataFile {
 
 	/** 1.52G */
 	public static final long DEFAULT_MAX_FILE_SIZE = Integer.MAX_VALUE - (500L * 1024L * 1024L);
-	/** 5M */
-	public static final long DEFAULT_FILE_SIZE = 1024L;
+	/** 100M */
+	public static final long DEFAULT_FILE_SIZE = 1024L*1024L*100;
 
 	final Logger log = LoggerFactory.getLogger(DataFile.class);
 
@@ -56,11 +55,9 @@ public class DataFile {
 	}
 
 	public DataFile(String fullFilePath, long fileSize) throws IOException {
-		// 小于1M
 		if (fileSize < DEFAULT_FILE_SIZE) {
 			fileSize = DEFAULT_FILE_SIZE;
 		}
-		// 单文件不能大于1.5G
 		if (fileSize > DEFAULT_MAX_FILE_SIZE) {
 			fileSize = DEFAULT_MAX_FILE_SIZE;
 		}
@@ -174,29 +171,23 @@ public class DataFile {
 		return enduse == mappedByteBuffer.get();
 	}
 
+	
 	public void close() {
 		try {
-			final CountDownLatch latch = new CountDownLatch(1);
+			mappedByteBuffer.force();
 			AccessController.doPrivileged(new PrivilegedAction<Object>() {
 				public Object run() {
 					try {
-						mappedByteBuffer.force();
 						Method getCleanerMethod = mappedByteBuffer.getClass().getMethod("cleaner", new Class[0]);
 						getCleanerMethod.setAccessible(true);
 						sun.misc.Cleaner cleaner = (sun.misc.Cleaner) getCleanerMethod.invoke(mappedByteBuffer, new Object[0]);
 						cleaner.clean();
 					} catch (Exception e) {
 						log.error("close logindexy file error:", e);
-					} finally {
-						latch.countDown();
-					}
+					} 
 					return null;
 				}
 			});
-			try {
-				latch.await();
-			} catch (InterruptedException e) {
-			}
 			if (channel != null) {
 				channel.close();
 				channel = null;
@@ -212,4 +203,5 @@ public class DataFile {
 			log.error("close logindex file error:", e);
 		}
 	}
+	
 }

@@ -43,7 +43,7 @@ public class DataFilePreCreateRunner extends Thread {
 					}
 				}
 				try {
-					Thread.sleep(10);
+					Thread.sleep(5);
 				} catch (InterruptedException e) {
 					break;
 				}
