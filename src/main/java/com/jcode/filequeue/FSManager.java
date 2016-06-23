@@ -10,7 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.jcode.filequeue.exception.FileQueueAlreadyInuseException;
-import com.jcode.filequeue.exception.FileQueueInitException;
+import com.jcode.filequeue.exception.FileQueueException;
 
 /**
  * @Desc
@@ -35,36 +35,30 @@ public class FSManager {
 	private DataFilePreCreateRunner preCreateRunner;
 	final Logger log = LoggerFactory.getLogger(FSManager.class);
 
-	public FSManager(String filePath) {
+	public FSManager(String filePath) throws IOException {
 		this(filePath, DataFile.DEFAULT_FILE_SIZE, false);
 	}
 
-	public FSManager(String filePath, long fileSize) {
+	public FSManager(String filePath, long fileSize) throws IOException {
 		this(filePath, fileSize, false);
 	}
 
-	public FSManager(String filePath, long fileSize, boolean ignoreLock) {
+	public FSManager(String filePath, long fileSize, boolean ignoreLock) throws IOException {
 		this.filePath = filePath;
 		this.fileSize = fileSize;
 		File file = new File(filePath);
 		if (!file.exists()) {
-			boolean created = file.mkdirs();
-			if (!created) {
-				log.error("cannot mkdirs:" + filePath);
+			if (!file.mkdirs()) {
+				throw new FileQueueException("cannot create file queue with the path:"+filePath);
 			}
 		}
-		try {
-			if (!ignoreLock) {
-				if (LockFile.isLockFileExists(filePath)) {
-					throw new FileQueueAlreadyInuseException("the path(" + filePath + ") of file queue is already in use.");
-				}
+		if (!ignoreLock) {
+			if (LockFile.isLockFileExists(filePath)) {
+				throw new FileQueueAlreadyInuseException("the file queue with the path(" + filePath + ") is already in use.");
 			}
 			LockFile.createLockFile(filePath);
-			init();
-		} catch (IOException e) {
-			log.error(e.getMessage(), e);
-			throw new FileQueueInitException(e.getMessage(), e);
 		}
+		init();
 	}
 
 	/**
@@ -99,12 +93,7 @@ public class FSManager {
 		if (metaFile.getQueueSize() == 0) {
 			return null;
 		}
-		byte[] data = null;
-		try {
-			data = readFileHandler.read();
-		} catch (Throwable e) {
-			log.error("data format error", e);
-		}
+		byte[] data = readFileHandler.read();
 		while (data == null && metaFile.getQueueSize() > 0) {
 			int nextReadFileIndex = metaFile.getNextReadFileIndex();
 			if (nextReadFileIndex < 0) {
@@ -113,11 +102,7 @@ public class FSManager {
 				readFileHandler.enduse();
 				readFileHandler.close();
 				readFileHandler = new DataFile(filePath, nextReadFileIndex, fileSize);
-				try {
-					data = readFileHandler.read();
-				} catch (Throwable e) {
-					log.error("data format error", e);
-				}
+				data = readFileHandler.read();
 			}
 		}
 		if (data != null) {
@@ -131,12 +116,7 @@ public class FSManager {
 		if (metaFile.getQueueSize() == 0) {
 			return null;
 		}
-		byte[] data = null;
-		try {
-			data = readFileHandler.peek();
-		} catch (Throwable e) {
-			log.error("data format error", e);
-		}
+		byte[] data = readFileHandler.peek();
 		while (data == null && metaFile.getQueueSize() > 0) {
 			int nextReadFileIndex = metaFile.getNextReadFileIndex();
 			if (nextReadFileIndex < 0) {
@@ -145,42 +125,34 @@ public class FSManager {
 				readFileHandler.enduse();
 				readFileHandler.close();
 				readFileHandler = new DataFile(filePath, nextReadFileIndex, fileSize);
-				try {
-					data = readFileHandler.peek();
-				} catch (Throwable e) {
-					log.error("data format error", e);
-				}
+				data = readFileHandler.peek();
 			}
 		}
 		return data;
 	}
 
-	public void reset() {
-		try {
-			if (writeFileHandler != null) {
-				writeFileHandler.close();
-				writeFileHandler = null;
-			}
-			if (readFileHandler != null) {
-				readFileHandler.close();
-				readFileHandler = null;
-			}
-			if (metaFile != null) {
-				metaFile.reset();
-			}
-			File[] files = new File(getFilePath()).listFiles();
-			if (files != null && files.length > 0) {
-				for (File file : files) {
-					if (file.getName().startsWith(DataFile.dataFileName)) {
-						log.info("reset delete file:" + file.getName() + "=" + file.delete());
-					}
+	public void reset() throws IOException {
+		if (writeFileHandler != null) {
+			writeFileHandler.close();
+			writeFileHandler = null;
+		}
+		if (readFileHandler != null) {
+			readFileHandler.close();
+			readFileHandler = null;
+		}
+		if (metaFile != null) {
+			metaFile.reset();
+		}
+		File[] files = new File(getFilePath()).listFiles();
+		if (files != null && files.length > 0) {
+			for (File file : files) {
+				if (file.getName().startsWith(DataFile.dataFileName)) {
+					log.debug("reset delete file:" + file.getName() + "=" + file.delete());
 				}
 			}
-			readFileHandler = new DataFile(filePath, metaFile.getReadFileIndex(), fileSize);
-			writeFileHandler = new DataFile(filePath, metaFile.getWriteFileIndex(), fileSize);
-		} catch (Throwable e) {
-			log.error(e.getMessage(), e);
 		}
+		readFileHandler = new DataFile(filePath, metaFile.getReadFileIndex(), fileSize);
+		writeFileHandler = new DataFile(filePath, metaFile.getWriteFileIndex(), fileSize);
 	}
 
 	public String getFilePath() {
@@ -215,32 +187,28 @@ public class FSManager {
 		return metaFile.getMetaInfo();
 	}
 
-	public void close() {
-		try {
-			if (deleteRunner != null) {
-				deleteRunner.shutdown();
-				deleteRunner = null;
-			}
-			if (preCreateRunner != null) {
-				preCreateRunner.shutdown();
-				preCreateRunner = null;
-			}
-			if (metaFile != null) {
-				metaFile.close();
-				metaFile = null;
-			}
-			if (writeFileHandler != null) {
-				writeFileHandler.close();
-				writeFileHandler = null;
-			}
-			if (readFileHandler != null) {
-				readFileHandler.close();
-				readFileHandler = null;
-			}
-			LockFile.deleteLockFile(filePath);
-		} catch (Throwable e) {
-			log.error(e.getMessage(), e);
+	public void close() throws IOException {
+		if (deleteRunner != null) {
+			deleteRunner.shutdown();
+			deleteRunner = null;
 		}
+		if (preCreateRunner != null) {
+			preCreateRunner.shutdown();
+			preCreateRunner = null;
+		}
+		if (metaFile != null) {
+			metaFile.close();
+			metaFile = null;
+		}
+		if (writeFileHandler != null) {
+			writeFileHandler.close();
+			writeFileHandler = null;
+		}
+		if (readFileHandler != null) {
+			readFileHandler.close();
+			readFileHandler = null;
+		}
+		LockFile.deleteLockFile(filePath);
 	}
 
 }

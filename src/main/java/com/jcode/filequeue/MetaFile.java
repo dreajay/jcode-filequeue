@@ -48,7 +48,7 @@ public class MetaFile {
 	public MetaFile(String filePath) throws IOException {
 		File metaFile = new File(filePath + metaFileName);
 		if (metaFile.exists()) {
-			log.info("meta file exists");
+			log.debug("meta file exists");
 			randomAccessFile = new RandomAccessFile(metaFile, "rwd");
 			if (randomAccessFile.length() != metaFileSize) {
 				throw new MetaFileFormatException("the file queue meta file length is wrong,file format is not correct.");

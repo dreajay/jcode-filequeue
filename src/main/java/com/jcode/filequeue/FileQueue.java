@@ -3,6 +3,7 @@
  */
 package com.jcode.filequeue;
 
+import java.io.IOException;
 import java.util.AbstractQueue;
 import java.util.Iterator;
 import java.util.Queue;
@@ -12,6 +13,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.jcode.filequeue.exception.FileQueueException;
 import com.jcode.filequeue.serializer.JDKSerializer;
 import com.jcode.filequeue.serializer.QueueSerializer;
 
@@ -28,6 +30,9 @@ public class FileQueue<E> extends AbstractQueue<E> implements Queue<E>, java.io.
 	private Lock lock = new ReentrantReadWriteLock().writeLock();
 	protected QueueSerializer<E> serializer;
 	protected static JDKSerializer default_serializer = new JDKSerializer();
+	
+	/** 文件队列锁，防止并发处理同一文件 */
+	private static Object fileQueueLock = new Object();
 
 	final Logger log = LoggerFactory.getLogger(FileQueue.class);
 
@@ -48,9 +53,15 @@ public class FileQueue<E> extends AbstractQueue<E> implements Queue<E>, java.io.
 	}
 
 	public FileQueue(String path, long fileSize, QueueSerializer serializer, boolean ignoreLock) {
-		synchronized (this) {
-			log.info("FileQueue Start...");
-			fsManager = new FSManager(path, fileSize, ignoreLock);
+		synchronized (fileQueueLock) {
+			log.debug("File Queue Start...");
+			try {
+				fsManager = new FSManager(path, fileSize, ignoreLock);
+			} catch (FileQueueException e) {
+				throw e;
+			} catch (IOException e) {
+				throw new FileQueueException("file queue create error:"+e.getMessage(), e);
+			}
 			addShutdownHook();
 		}
 		this.serializer = serializer;
@@ -87,11 +98,11 @@ public class FileQueue<E> extends AbstractQueue<E> implements Queue<E>, java.io.
 			fsManager.put(serializer.serialize(e));
 			return true;
 		} catch (Exception ex) {
-			ex.printStackTrace();
+			log.error(ex.getMessage(),ex);
+			return false;
 		} finally {
 			lock.unlock();
 		}
-		return false;
 	}
 
 	@Override
@@ -151,12 +162,15 @@ public class FileQueue<E> extends AbstractQueue<E> implements Queue<E>, java.io.
 	}
 
 	public void close() {
-		log.info("FileQueue Shutdown...");
-		long begin =System.currentTimeMillis();
+		log.debug("File Queue close...");
 		if (fsManager != null) {
-			fsManager.close();
+			try {
+				fsManager.close();
+			} catch (IOException e) {
+				log.error("file queue close error:"+e.getMessage(), e);
+			}
 			fsManager = null;
 		}
-		System.out.println("close:"+(System.currentTimeMillis()-begin));
+		log.debug("File Queue close success...");
 	}
 }

@@ -70,7 +70,7 @@ public class DataFile {
 				channel = randomAccessFile.getChannel();
 				mappedByteBuffer = channel.map(MapMode.READ_WRITE, 0, fileSize);
 			} else {
-				log.info("create new data file:" + file.getAbsolutePath());
+				log.debug("create new data file:" + file.getAbsolutePath());
 				file.createNewFile();
 				randomAccessFile = new RandomAccessFile(file, "rwd");
 				channel = randomAccessFile.getChannel();
