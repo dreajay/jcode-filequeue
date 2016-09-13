@@ -19,8 +19,8 @@ import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 
 /**
  * 
@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
  *
  */
 public class DataFileDeleteRunner extends Thread {
-	private final Logger log = LoggerFactory.getLogger(DataFileDeleteRunner.class);
+	private static final Logger log = LogManager.getLogger(DataFileDeleteRunner.class);
 	private FSManager fsManager;
 	private File queueFilePath;
 	private volatile boolean run;

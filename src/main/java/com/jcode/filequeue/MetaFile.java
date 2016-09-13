@@ -15,8 +15,8 @@ import java.security.PrivilegedAction;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 
 import com.jcode.filequeue.exception.MetaFileFormatException;
 
@@ -43,12 +43,12 @@ public class MetaFile {
 	private FileChannel channel;
 	private MappedByteBuffer mappedByteBuffer;
 
-	final Logger log = LoggerFactory.getLogger(MetaFile.class);
+	public static final Logger log = LogManager.getLogger(MetaFile.class);
 
 	public MetaFile(String filePath) throws IOException {
 		File metaFile = new File(filePath + metaFileName);
 		if (metaFile.exists()) {
-			log.debug("meta file exists");
+			log.info("meta file exists");
 			randomAccessFile = new RandomAccessFile(metaFile, "rwd");
 			if (randomAccessFile.length() != metaFileSize) {
 				throw new MetaFileFormatException("the file queue meta file length is wrong,file format is not correct.");

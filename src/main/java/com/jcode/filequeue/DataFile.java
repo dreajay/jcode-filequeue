@@ -13,8 +13,8 @@ import java.nio.channels.FileChannel.MapMode;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 
 /**
  * @Desc
@@ -43,8 +43,8 @@ public class DataFile {
 	public static final long DEFAULT_MAX_FILE_SIZE = Integer.MAX_VALUE - (500L * 1024L * 1024L);
 	/** 100M */
 	public static final long DEFAULT_FILE_SIZE = 1024L*1024L*100;
-
-	final Logger log = LoggerFactory.getLogger(DataFile.class);
+	
+	public static final Logger log = LogManager.getLogger(DataFile.class);
 
 	public DataFile(String filePath, int fileIndex, long fileSize) throws IOException {
 		this(filePath + dataFileName + fileIndex, fileSize);
@@ -66,11 +66,12 @@ public class DataFile {
 		// 文件不存在，进行创建
 		synchronized (fileLock) {
 			if (file.exists()) {
+				log.info("DataFile init, exists data file:" + file.getAbsolutePath());
 				randomAccessFile = new RandomAccessFile(file, "rwd");
 				channel = randomAccessFile.getChannel();
 				mappedByteBuffer = channel.map(MapMode.READ_WRITE, 0, fileSize);
 			} else {
-				log.debug("create new data file:" + file.getAbsolutePath());
+				log.info("DataFile init, create data file:" + file.getAbsolutePath());
 				file.createNewFile();
 				randomAccessFile = new RandomAccessFile(file, "rwd");
 				channel = randomAccessFile.getChannel();
@@ -86,7 +87,7 @@ public class DataFile {
 		}
 	}
 
-	public static boolean isDataFileExists(String filePath, int fileIndex) {
+	public static boolean exists(String filePath, int fileIndex) {
 		File file = new File(filePath + dataFileName + fileIndex);
 		return file.exists();
 	}

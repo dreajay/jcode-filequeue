@@ -5,12 +5,15 @@ package com.jcode.filequeue;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 
 import com.jcode.filequeue.exception.FileQueueAlreadyInuseException;
 import com.jcode.filequeue.exception.FileQueueException;
+import com.jcode.filequeue.exception.NoEnoughSpaceException;
 
 /**
  * @Desc
@@ -22,7 +25,7 @@ import com.jcode.filequeue.exception.FileQueueException;
 public class FSManager {
 
 	private String filePath;
-
+	private File file;
 	private MetaFile metaFile;
 
 	private DataFile writeFileHandler;
@@ -33,7 +36,13 @@ public class FSManager {
 
 	private DataFileDeleteRunner deleteRunner;
 	private DataFilePreCreateRunner preCreateRunner;
-	final Logger log = LoggerFactory.getLogger(FSManager.class);
+	private ExecutorService executorService = Executors.newFixedThreadPool(2);
+	/** 3G */
+	public static final long USABLESPACE = 3*1024L*1024L*1024L;
+	
+	public static final long G = 1024L*1024L*1024L;
+	
+	private static final Logger log = LogManager.getLogger(FSManager.class);
 
 	public FSManager(String filePath) throws IOException {
 		this(filePath, DataFile.DEFAULT_FILE_SIZE, false);
@@ -44,9 +53,12 @@ public class FSManager {
 	}
 
 	public FSManager(String filePath, long fileSize, boolean ignoreLock) throws IOException {
+		if(!filePath.endsWith("/") && !filePath.endsWith("\\")) {
+			filePath += File.separator;
+		}
 		this.filePath = filePath;
 		this.fileSize = fileSize;
-		File file = new File(filePath);
+		file = new File(filePath);
 		if (!file.exists()) {
 			if (!file.mkdirs()) {
 				throw new FileQueueException("cannot create file queue with the path:"+filePath);
@@ -59,6 +71,8 @@ public class FSManager {
 			LockFile.createLockFile(filePath);
 		}
 		init();
+		
+		log.info(String.format("文件队列[%s]信息：%s", filePath, getMetaInfo()));
 	}
 
 	/**
@@ -71,12 +85,16 @@ public class FSManager {
 		writeFileHandler = new DataFile(filePath, metaFile.getWriteFileIndex(), fileSize);
 		readFileHandler = new DataFile(filePath, metaFile.getReadFileIndex(), fileSize);
 		deleteRunner = new DataFileDeleteRunner(this);
-		deleteRunner.start();
 		preCreateRunner = new DataFilePreCreateRunner(this);
-		preCreateRunner.start();
+		executorService.execute(deleteRunner);
+		executorService.execute(preCreateRunner);
 	}
 
 	public void put(byte[] data) throws IOException {
+		if(judgeNoEnoughSpace()) {
+			String errorMsg = String.format("current disk TotalSpace: %d G,UsableSpace: %d G", file.getTotalSpace() / G, file.getUsableSpace() / G);
+			throw new NoEnoughSpaceException(errorMsg);
+		}
 		int ret = writeFileHandler.write(data);
 		// 文件已满，获取下一个
 		if (ret == DataFile.FILE_FULL) {
@@ -89,6 +107,9 @@ public class FSManager {
 		metaFile.addFileSize(4 + data.length);
 	}
 
+	public boolean judgeNoEnoughSpace() {
+		return file.getUsableSpace() < USABLESPACE;
+	}
 	public byte[] get() throws IOException {
 		if (metaFile.getQueueSize() == 0) {
 			return null;
@@ -196,6 +217,7 @@ public class FSManager {
 			preCreateRunner.shutdown();
 			preCreateRunner = null;
 		}
+		executorService.shutdown();
 		if (metaFile != null) {
 			metaFile.close();
 			metaFile = null;
