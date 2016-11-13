@@ -15,49 +15,29 @@ public class DataFilePreCreateRunner extends Thread {
 	private static final Logger log = LogManager.getLogger(DataFilePreCreateRunner.class);
 	private FSManager fsManager;
 
-	private volatile boolean run;
-
 	public DataFilePreCreateRunner(FSManager fsManager) {
+		super("thread-DataFilePreCreateRunner");
 		this.fsManager = fsManager;
-		run = true;
 	}
 
 	@Override
 	public void run() {
-		while (run) {
-			try {
-				if (run) {
-					//判断空间
-					if(fsManager.judgeNoEnoughSpace()) {
-						try {
-							Thread.sleep(10000);
-						} catch (InterruptedException e) {
-							break;
-						}
-					} else {
-						int writeFileIndex = fsManager.getWriteFileIndex();
-						int nextWriteFileIndex = writeFileIndex < Integer.MAX_VALUE ? writeFileIndex + 1 : 0;
-						if(!DataFile.exists(fsManager.getFilePath(), nextWriteFileIndex)) {
-							DataFile dataFile = new DataFile(fsManager.getFilePath(), nextWriteFileIndex, fsManager.getFileSize());
-							dataFile.close();
-						}
-						try {
-							Thread.sleep(5);
-						} catch (InterruptedException e) {
-							break;
-						}
-					}
-				} else {
-					break;
+		try {
+			//判断空间
+			if(!fsManager.judgeNoEnoughSpace()) {
+				int writeFileIndex = fsManager.getWriteFileIndex();
+				int nextWriteFileIndex = writeFileIndex < Integer.MAX_VALUE ? writeFileIndex + 1 : 0;
+				if(!DataFile.exists(fsManager.getFilePath(), nextWriteFileIndex)) {
+					DataFile dataFile = new DataFile(fsManager.getFilePath(), nextWriteFileIndex, fsManager.getFileSize());
+					dataFile.close();
 				}
-			} catch (Throwable e) {
-				log.error(e.getMessage(), e);
 			}
+		} catch (Throwable e) {
+			log.error(e.getMessage(), e);
 		}
 	}
 
 	public void shutdown() {
-		run = false;
 		this.interrupt();
 	}
 }

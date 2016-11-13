@@ -5,8 +5,9 @@ package com.jcode.filequeue;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -34,9 +35,7 @@ public class FSManager {
 
 	private long fileSize;
 
-	private DataFileDeleteRunner deleteRunner;
-	private DataFilePreCreateRunner preCreateRunner;
-	private ExecutorService executorService = Executors.newFixedThreadPool(2);
+	private ScheduledExecutorService executorService = Executors.newScheduledThreadPool(2);
 	/** 3G */
 	public static final long USABLESPACE = 3*1024L*1024L*1024L;
 	
@@ -84,10 +83,8 @@ public class FSManager {
 		metaFile = new MetaFile(filePath);
 		writeFileHandler = new DataFile(filePath, metaFile.getWriteFileIndex(), fileSize);
 		readFileHandler = new DataFile(filePath, metaFile.getReadFileIndex(), fileSize);
-		deleteRunner = new DataFileDeleteRunner(this);
-		preCreateRunner = new DataFilePreCreateRunner(this);
-		executorService.execute(deleteRunner);
-		executorService.execute(preCreateRunner);
+		executorService.scheduleAtFixedRate(new DataFileDeleteRunner(this), 5, 5, TimeUnit.SECONDS);
+		executorService.scheduleAtFixedRate(new DataFilePreCreateRunner(this), 5, 30, TimeUnit.SECONDS);
 	}
 
 	public void put(byte[] data) throws IOException {
@@ -209,14 +206,6 @@ public class FSManager {
 	}
 
 	public void close() throws IOException {
-		if (deleteRunner != null) {
-			deleteRunner.shutdown();
-			deleteRunner = null;
-		}
-		if (preCreateRunner != null) {
-			preCreateRunner.shutdown();
-			preCreateRunner = null;
-		}
 		executorService.shutdown();
 		if (metaFile != null) {
 			metaFile.close();

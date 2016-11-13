@@ -34,77 +34,62 @@ public class DataFileDeleteRunner extends Thread {
 	private static final Logger log = LogManager.getLogger(DataFileDeleteRunner.class);
 	private FSManager fsManager;
 	private File queueFilePath;
-	private volatile boolean run;
 
 	public DataFileDeleteRunner(FSManager fsManager) {
+		super("thread-DataFileDeleteRunner");
 		this.fsManager = fsManager;
 		queueFilePath = new File(fsManager.getFilePath());
-		run = true;
 	}
 
 	@Override
 	public void run() {
-		while (run) {
-			try {
-				File[] files = queueFilePath.listFiles(new FilenameFilter() {
-					@Override
-					public boolean accept(File dir, String name) {
-						if (name.startsWith(DataFile.dataFileName)) {
-							int index = Integer.parseInt(name.subSequence(name.indexOf("-") + 1, name.length()).toString());
-							int readFileIndex = fsManager.getReadFileIndex();
-							int writeFileIndex = fsManager.getWriteFileIndex();
-							if (writeFileIndex >= readFileIndex) {
-								if (index < readFileIndex) {
-									return true;
-								} else {
-									return false;
-								}
+		try {
+			File[] files = queueFilePath.listFiles(new FilenameFilter() {
+				@Override
+				public boolean accept(File dir, String name) {
+					if (name.startsWith(DataFile.dataFileName)) {
+						int index = Integer.parseInt(name.subSequence(name.indexOf("-") + 1, name.length()).toString());
+						int readFileIndex = fsManager.getReadFileIndex();
+						int writeFileIndex = fsManager.getWriteFileIndex();
+						if (writeFileIndex >= readFileIndex) {
+							if (index < readFileIndex) {
+								return true;
 							} else {
-								if (index > writeFileIndex + 1 && index < readFileIndex) {
-									return true;
-								} else {
-									return false;
-								}
+								return false;
 							}
 						} else {
-							return false;
-						}
-					}
-				});
-				if (files != null && files.length > 0 && run) {
-					for (File file : files) {
-						if (run) {
-							try {
-								DataFile dataFile = new DataFile(file.getAbsolutePath(), fsManager.getFileSize());
-								boolean enduse = dataFile.isEnduse();
-								dataFile.close();
-								if (enduse) {
-									log.info("delete data file:" + file.getName());
-									file.delete();
-								}
-							} catch (IOException e) {
-								log.error(e.getMessage(), e);
+							if (index > writeFileIndex + 1 && index < readFileIndex) {
+								return true;
+							} else {
+								return false;
 							}
-						} else {
-							break;
 						}
+					} else {
+						return false;
 					}
 				}
-				// 睡眠1秒钟
-				try {
-					Thread.sleep(5);
-				} catch (InterruptedException e) {
-					break;
+			});
+			if (files != null && files.length > 0) {
+				for (File file : files) {
+					try {
+						DataFile dataFile = new DataFile(file.getAbsolutePath(), fsManager.getFileSize());
+						boolean enduse = dataFile.isEnduse();
+						dataFile.close();
+						if (enduse) {
+							log.info("delete data file:" + file.getName());
+							file.delete();
+						}
+					} catch (IOException e) {
+						log.error(e.getMessage(), e);
+					}
 				}
-
-			} catch (Throwable e) {
-				log.error(e.getMessage(), e);
 			}
+		} catch (Throwable e) {
+			log.error(e.getMessage(), e);
 		}
 	}
 
 	public void shutdown() {
-		run = false;
 		this.interrupt();
 	}
 }
